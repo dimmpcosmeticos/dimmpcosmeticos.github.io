@@ -423,11 +423,51 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green)}
       <button class="btn am" onclick="sendWhatsApp()">💬 Enviar por WhatsApp</button>
     </div>
     <div id="adminOrderBtns" style="display:none;margin-top:4px">
+      <button class="btn am" onclick="abrirEdicaoPedido()" style="margin-bottom:8px">✏️ Editar pedido</button>
       <button class="btn rd" onclick="deleteOrder()">🗑️ Cancelar pedido</button>
     </div>
   </div>
 
+  <!-- EDITAR PEDIDO ADMIN -->
+  <div class="screen" id="screen-editOrder">
+    <div class="st">✏️ Editar Pedido</div>
+    <div class="card" style="padding:8px 14px;margin-bottom:8px" id="editOrderClientInfo"></div>
+    <div class="pt-tabs" id="editOrderTabs">
+      <button class="pt-tab active" onclick="setEditOrdTable('distribuidor',this)">Distribuidor</button>
+      <button class="pt-tab" onclick="setEditOrdTable('atacado',this)">Varejo / Barbearia</button>
+      <button class="pt-tab" onclick="setEditOrdTable('varejo',this)">Consumidor Final</button>
+    </div>
+    <div class="st">Produtos</div>
+    <div class="sb"><span class="si">🔍</span><input type="text" placeholder="Buscar produto..." oninput="filterProds(this.value,'editOrderProductList')"></div>
+    <div id="editOrderProductList"></div>
+    <div class="dr"><span>🏷️</span><span class="dl">Desconto adicional (%)</span><input type="number" min="0" max="40" step="1" value="0" id="editDiscountInput" oninput="updateEditTotal()"></div>
+    <div class="st">Forma de pagamento</div>
+    <div class="pg" id="editPgtoGrid">
+      <button class="pb active" onclick="setEditPgto(this,'Dinheiro')">💵 Dinheiro</button>
+      <button class="pb" onclick="setEditPgto(this,'PIX')">💚 PIX</button>
+      <button class="pb" onclick="setEditPgto(this,'Boleto 7d')">📄 7d</button>
+      <button class="pb" onclick="setEditPgto(this,'Boleto 14d')">📄 14d</button>
+      <button class="pb" onclick="setEditPgto(this,'Boleto 21d')">📄 21d</button>
+      <button class="pb" onclick="setEditPgto(this,'Boleto 28d')">📄 28d</button>
+      <button class="pb" onclick="setEditPgto(this,'Cartão Crédito')">💳 Crédito</button>
+      <button class="pb" onclick="setEditPgto(this,'Cartão Débito')">💳 Débito</button>
+      <button class="pb" onclick="setEditPgto(this,'Amostras')">🎁 Amostras</button>
+      <button class="pb" onclick="setEditPgto(this,'Bonificação')">🏆 Bonificação</button>
+    </div>
+    <div class="card" style="padding:8px 14px">
+      <div class="drow"><span class="dl">Subtotal</span><span id="editSummSub">R$ 0,00</span></div>
+      <div class="drow"><span class="dl">Desconto</span><span id="editSummDisc" style="color:var(--coral)">- R$ 0,00</span></div>
+      <div class="drow" style="font-weight:700"><span>Total</span><span id="editSummTot" style="color:var(--green)">R$ 0,00</span></div>
+    </div>
+    <div class="card" style="padding:8px 14px">
+      <label>Observações</label>
+      <textarea rows="2" id="editOrderObs" placeholder="Observações..." style="margin-bottom:0"></textarea>
+    </div>
+    <button class="btn p" style="margin-top:8px" onclick="salvarEdicaoPedido()">✓ Salvar alterações</button>
+  </div>
+
   <!-- ADMIN -->
+
   <div class="screen" id="screen-admin">
     <div class="admin-bar"><span class="ai">📊</span><div><div class="at">Painel dos Sócios</div><div class="as">Dados em tempo real</div></div></div>
     <div class="mg">
@@ -565,6 +605,7 @@ let CU=null,CR='revendedor',clients={},orders={},estoque={},comissoes={};
 let catTable='distribuidor',ordTable='distribuidor';
 let orderQtys={},selPgto='Dinheiro',selCli=null,curCli=null,editandoRascunhoId=null;
 let navStack=[],curOrderId=null;
+let editOrdTable='distribuidor',editSelPgto='Dinheiro',editOrderQtys={};
 let gpsLat=-20.274,gpsLng=-50.536,gpsCity='';
 let photoDataURL=null;
 const ROOT=['home','clients','catalog','orders','admin'];
@@ -1423,6 +1464,128 @@ function generatePDF(){
       var url=URL.createObjectURL(blob);
       window.open(url,'_blank');
     });
+  });
+}
+
+
+// EDIÇÃO DE PEDIDO (ADMIN)
+function abrirEdicaoPedido(){
+  if(!curOrderId)return;
+  db.ref('orders/'+curOrderId).once('value',function(snap){
+    const o=snap.val();if(!o)return;
+    // Preencher info do cliente
+    db.ref('clients/'+o.clientId).once('value',function(csnap){
+      const c=csnap.val();
+      document.getElementById('editOrderClientInfo').innerHTML=
+        '<div style="font-size:13px;font-weight:700">'+(c?c.nome:'Avulso')+'</div>'+
+        '<div style="font-size:11px;color:var(--muted)">Pedido: '+o.id+' · '+o.date+'</div>';
+    });
+    // Restaurar estado do pedido
+    editOrdTable=o.table||'distribuidor';
+    editSelPgto=o.pgto||'Dinheiro';
+    editOrderQtys={};
+    (o.items||[]).forEach(function(it){editOrderQtys[it.id]=it.qty;});
+    document.getElementById('editDiscountInput').value=o.discount||0;
+    document.getElementById('editOrderObs').value=o.obs||'';
+    // Tabs de tabela
+    document.querySelectorAll('#editOrderTabs .pt-tab').forEach(function(b){
+      const t=b.textContent.trim().toLowerCase();
+      b.classList.toggle('active',editOrdTable==='distribuidor'?t.startsWith('dist'):editOrdTable==='atacado'?t.startsWith('var'):t.startsWith('con'));
+    });
+    // Botões de pagamento
+    document.querySelectorAll('#editPgtoGrid .pb').forEach(function(b){
+      b.classList.toggle('active',(b.getAttribute('onclick')||'').includes("'"+editSelPgto+"'"));
+    });
+    renderEditOrderProds();
+    updateEditTotal();
+    nav('editOrder');
+  });
+}
+
+function setEditOrdTable(t,btn){
+  editOrdTable=t;
+  document.querySelectorAll('#editOrderTabs .pt-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderEditOrderProds();
+  updateEditTotal();
+}
+
+function setEditPgto(btn,name){
+  editSelPgto=name;
+  document.querySelectorAll('#editPgtoGrid .pb').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function renderEditOrderProds(){
+  const el=document.getElementById('editOrderProductList');
+  const cats=[...new Set(ALL_PRODS.map(p=>p.cat))];
+  el.innerHTML=cats.map(cat=>{
+    const items=ALL_PRODS.filter(p=>p.cat===cat);
+    return`<div class="st">${cat}</div><div class="card" style="padding:4px 14px">${
+      items.map(p=>{
+        const q=editOrderQtys[p.id]||0;
+        const estoqueId=p.isCaixa?p.baseId:p.id;
+        const stk=getEstoque(estoqueId);
+        const maxQ=p.isCaixa?(stk===999?9999:Math.floor(stk/p.cxQtd)):(stk===999?9999:stk);
+        return`<div class="pr" data-n="${p.name}" style="${p.isCaixa?'border-left:3px solid #e67e22;background:#fff8f0;':''}">
+          <div class="pe" style="${prodPeStyle(p)}">${prodImg(p)}</div>
+          <div class="pi"><div class="pn">${p.isCaixa?'<span style="color:#e67e22;font-weight:700">'+p.name+'</span>':p.name}</div><div class="pc">${fmt(getP(p,editOrdTable))}</div></div>
+          <div class="qc">
+            <button class="qb" id="emb${p.id}" onclick="chgEditQty('${p.id}',-1)" ${q===0?'disabled':''}>−</button>
+            <span class="qv" id="eq${p.id}">${q}</span>
+            <button class="qb" id="epb${p.id}" onclick="chgEditQty('${p.id}',1)" ${q>=maxQ?'disabled':''}>+</button>
+          </div>
+        </div>`;
+      }).join('')
+    }</div>`;
+  }).join('');
+}
+
+function chgEditQty(id,d){
+  const p=ALL_PRODS.find(x=>x.id===id);
+  const estoqueId=p&&p.isCaixa?p.baseId:id;
+  const stk=getEstoque(estoqueId);
+  const maxQ=p&&p.isCaixa?(stk===999?9999:Math.floor(stk/p.cxQtd)):(stk===999?9999:stk);
+  editOrderQtys[id]=Math.max(0,Math.min(maxQ,(editOrderQtys[id]||0)+d));
+  const q=editOrderQtys[id];
+  const el=document.getElementById('eq'+id);if(el)el.textContent=q;
+  const mb=document.getElementById('emb'+id);if(mb)mb.disabled=(q===0);
+  const pb=document.getElementById('epb'+id);if(pb)pb.disabled=(stk!==999&&q>=maxQ);
+  updateEditTotal();
+}
+
+function updateEditTotal(){
+  let sub=0;ALL_PRODS.forEach(p=>{sub+=(editOrderQtys[p.id]||0)*getP(p,editOrdTable);});
+  const d=Math.min(40,Math.max(0,parseFloat(document.getElementById('editDiscountInput').value)||0));
+  document.getElementById('editSummSub').textContent=fmt(sub);
+  document.getElementById('editSummDisc').textContent='- '+fmt(sub*d/100);
+  document.getElementById('editSummTot').textContent=fmt(sub*(1-d/100));
+}
+
+function salvarEdicaoPedido(){
+  if(!curOrderId)return;
+  const items=ALL_PRODS.filter(p=>(editOrderQtys[p.id]||0)>0).map(p=>{
+    return{id:p.id,baseId:p.baseId||p.id,name:p.name,e:p.e,qty:editOrderQtys[p.id],
+      unidades:(editOrderQtys[p.id]||0)*(p.isCaixa?p.cxQtd:1),
+      isCaixa:p.isCaixa||false,cxQtd:p.cxQtd||1,price:getP(p,editOrdTable)};
+  });
+  if(!items.length){alert('Adicione pelo menos 1 produto.');return;}
+  const d=Math.min(40,parseFloat(document.getElementById('editDiscountInput').value)||0);
+  let sub=0;items.forEach(it=>{sub+=it.qty*it.price;});
+  const total=Math.round((sub*(1-d/100))*100)/100;
+  const updates={
+    items:items,
+    table:editOrdTable,
+    pgto:editSelPgto,
+    discount:d,
+    obs:document.getElementById('editOrderObs').value,
+    total:total,
+    editadoPor:CU,
+    editadoEm:today()
+  };
+  db.ref('orders/'+curOrderId).update(updates).then(function(){
+    alert('Pedido atualizado!');
+    openOrder(curOrderId);
   });
 }
 
