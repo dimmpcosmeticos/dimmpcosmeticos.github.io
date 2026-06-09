@@ -136,6 +136,25 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green)}
 .empty{text-align:center;padding:40px 20px;color:var(--muted)}
 .empty .ei{font-size:40px;margin-bottom:8px}
 .loading{text-align:center;padding:30px;color:var(--muted);font-size:13px}
+/* MÊS NAVIGATOR */
+.mes-nav{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--border);border-radius:var(--rs);padding:8px 12px;margin-bottom:12px}
+.mes-nav-btn{background:none;border:none;font-size:20px;cursor:pointer;color:var(--green);width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;transition:background .15s}
+.mes-nav-btn:hover{background:var(--gl)}
+.mes-nav-label{font-size:14px;font-weight:700;color:var(--text);text-align:center;flex:1}
+.mes-nav-sub{font-size:10px;color:var(--muted);font-weight:400;display:block;margin-top:1px}
+/* CARDS MÉTRICAS COM MÊS */
+.mc-mes{font-size:10px;color:var(--muted);margin-top:2px;font-weight:400}
+.mc-total{font-size:11px;color:var(--muted);margin-top:3px;border-top:1px solid var(--border);padding-top:4px}
+/* COMISSÃO CARD */
+.comm-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:8px}
+.comm-card-row{display:flex;align-items:center;justify-content:space-between;padding:10px 14px}
+.comm-card-name{font-size:14px;font-weight:700;color:var(--text)}
+.comm-card-detail{font-size:11px;color:var(--muted);margin-top:2px}
+.comm-card-val{text-align:right}
+.comm-card-val .cv{font-size:17px;font-weight:700;color:var(--green)}
+.comm-card-val .cp{font-size:11px;color:var(--muted)}
+.comm-prog-bar{height:4px;background:var(--gl)}
+.comm-prog-fill{height:100%;background:var(--green);transition:width .4s}
 </style>
 </head>
 <body>
@@ -470,22 +489,40 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green)}
 
   <div class="screen" id="screen-admin">
     <div class="admin-bar"><span class="ai">📊</span><div><div class="at">Painel dos Sócios</div><div class="as">Dados em tempo real</div></div></div>
+
+    <!-- NAVEGADOR DE MÊS -->
+    <div class="mes-nav">
+      <button class="mes-nav-btn" onclick="adminNavMes(-1)">‹</button>
+      <div style="text-align:center;flex:1">
+        <div class="mes-nav-label" id="mesNavLabel">—</div>
+        <span class="mes-nav-sub" id="mesNavSub"></span>
+      </div>
+      <button class="mes-nav-btn" onclick="adminNavMes(1)">›</button>
+    </div>
+
+    <!-- CARDS: mês selecionado + totais gerais -->
     <div class="mg">
-      <div class="mc"><div class="lb">Total pedidos</div><div class="vl g" id="adPed">0</div></div>
-      <div class="mc"><div class="lb">Total faturado</div><div class="vl g" id="adFat">R$ 0</div></div>
+      <div class="mc">
+        <div class="lb">Pedidos do mês</div>
+        <div class="vl g" id="adPedMes">0</div>
+        <div class="mc-total">Total geral: <strong id="adPed">0</strong></div>
+      </div>
+      <div class="mc">
+        <div class="lb">Faturado no mês</div>
+        <div class="vl g" style="font-size:17px" id="adFatMes">R$ 0</div>
+        <div class="mc-total">Total geral: <strong id="adFat">R$ 0</strong></div>
+      </div>
       <div class="mc"><div class="lb">Clientes</div><div class="vl" id="adCli">0</div></div>
       <div class="mc"><div class="lb">Revendedores</div><div class="vl a" id="adRev">0</div></div>
     </div>
-    <div class="st" style="display:flex;align-items:center;justify-content:space-between">
-      <span>💰 Comissões</span>
-      <select id="adminMesSelect" onchange="adminMesSel=this.value;renderAdmin()" style="font-size:11px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);color:var(--text);background:#fff;margin-left:8px"></select>
-    </div>
-    <div class="card" style="padding:4px 14px" id="commList"></div>
+
+    <div class="st">💰 Comissões do mês</div>
+    <div id="commList"></div>
     <div class="st">⚙️ % de comissão por revendedor</div>
     <div class="card" style="padding:4px 14px" id="commConfig"></div>
     <div class="st">📦 Estoque dos produtos</div>
     <button class="btn" onclick="nav('estoque')">Gerenciar estoque →</button>
-    <div class="st">Por revendedor</div>
+    <div class="st">Por revendedor (total acumulado)</div>
     <div class="card" style="padding:4px 14px" id="adminRevList"></div>
     <div class="st">Todos os pedidos</div>
     <button class="btn" onclick="exportAllCSV()">⬇️ Exportar tudo em CSV</button>
@@ -1263,26 +1300,55 @@ function saveEstoque(){
 }
 
 // ADMIN
+let adminMesesDisp=[];
+
+function adminNavMes(dir){
+  if(!adminMesesDisp.length)return;
+  const idx=adminMesesDisp.indexOf(adminMesSel);
+  const newIdx=Math.max(0,Math.min(adminMesesDisp.length-1,idx-dir)); // ‹ = mais antigo, › = mais novo
+  adminMesSel=adminMesesDisp[newIdx];
+  renderAdmin();
+}
+
 function renderAdmin(){
   if(CR!=='admin')return;
   db.ref('orders').once('value',os=>{
     db.ref('clients').once('value',cs=>{
       const oArr=Object.values(os.val()||{});
       const cArr=Object.values(cs.val()||{});
-      // Popular seletor de meses disponíveis
+
+      // Popular meses disponíveis
       const mesesDisp=new Set();
       oArr.forEach(o=>{if(o.ts){const d=new Date(o.ts);mesesDisp.add(d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0'));}});
-      const mesesOrdenados=[...mesesDisp].sort().reverse();
-      const mk=adminMesSel||monthKey();
-      const sel=document.getElementById('adminMesSelect');
-      if(sel){
-        const opts=mesesOrdenados.map(m=>{
-          const [y,mo]=m.split('-');
-          const label=new Date(y,mo-1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
-          return`<option value="${m}" ${m===mk?'selected':''}>${label}</option>`;
-        });
-        sel.innerHTML=opts.join('');
-      }
+      adminMesesDisp=[...mesesDisp].sort().reverse();
+      if(!adminMesSel||!adminMesesDisp.includes(adminMesSel))adminMesSel=adminMesesDisp[0]||monthKey();
+      const mk=adminMesSel;
+
+      // Atualizar label do mês navigator
+      const [y,mo]=mk.split('-');
+      const labelMes=new Date(y,mo-1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+      const capLabel=labelMes.charAt(0).toUpperCase()+labelMes.slice(1);
+      document.getElementById('mesNavLabel').textContent=capLabel;
+      const idx=adminMesesDisp.indexOf(mk);
+      const sub=adminMesesDisp.length>1?`${adminMesesDisp.length-idx}º de ${adminMesesDisp.length} meses`:'';
+      document.getElementById('mesNavSub').textContent=sub;
+
+      // Totais gerais
+      const totalGeral=oArr.reduce((s,o)=>s+o.total,0);
+      document.getElementById('adPed').textContent=oArr.length;
+      document.getElementById('adFat').textContent=fmt(totalGeral);
+      document.getElementById('adCli').textContent=cArr.length;
+
+      // Totais do mês
+      const oMes=oArr.filter(o=>{
+        if(!o.ts)return false;
+        const d=new Date(o.ts);
+        return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')===mk;
+      });
+      document.getElementById('adPedMes').textContent=oMes.length;
+      document.getElementById('adFatMes').textContent=fmt(oMes.reduce((s,o)=>s+o.total,0));
+
+      // Calcular por revendedor
       const revMap={};
       oArr.forEach(o=>{
         const r=o.revendedor||'Desconhecido';
@@ -1291,19 +1357,29 @@ function renderAdmin(){
         if(o.ts){const d=new Date(o.ts);const oMk=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0');if(oMk===mk&&o.pgto!=='Amostras'&&o.pgto!=='Bonificação')revMap[r].mes+=o.total;}
       });
       const revs=Object.values(revMap);
-      document.getElementById('adPed').textContent=oArr.length;
-      document.getElementById('adFat').textContent=fmt(oArr.reduce((s,o)=>s+o.total,0));
-      document.getElementById('adCli').textContent=cArr.length;
       document.getElementById('adRev').textContent=revs.length;
-      // Comissões
+
+      // Comissões — cards visuais com barra de progresso
+      const maxMes=revs.length?Math.max(...revs.map(r=>r.mes)):1;
       document.getElementById('commList').innerHTML=revs.length?revs.sort((a,b)=>b.mes-a.mes).map(r=>{
         const pct=comissoes[r.name]||10;
         const comm=r.mes*pct/100;
-        return`<div class="rev-row">
-          <div><div style="font-size:13px;font-weight:600">${r.name}</div><div style="font-size:11px;color:var(--muted)">Mês: ${fmt(r.mes)} · ${pct}%</div></div>
-          <span style="font-size:15px;font-weight:700;color:var(--green)">${fmt(comm)}</span>
+        const barPct=maxMes>0?Math.round((r.mes/maxMes)*100):0;
+        return`<div class="comm-card">
+          <div class="comm-prog-bar"><div class="comm-prog-fill" style="width:${barPct}%"></div></div>
+          <div class="comm-card-row">
+            <div>
+              <div class="comm-card-name">${r.name}</div>
+              <div class="comm-card-detail">Vendas: ${fmt(r.mes)} · ${pct}% comissão</div>
+            </div>
+            <div class="comm-card-val">
+              <div class="cv">${fmt(comm)}</div>
+              <div class="cp">comissão</div>
+            </div>
+          </div>
         </div>`;
-      }).join(''):'<p style="padding:10px 0;font-size:13px;color:var(--muted)">Sem dados</p>';
+      }).join(''):'<p style="padding:10px 0;font-size:13px;color:var(--muted)">Sem dados neste mês</p>';
+
       // Config comissão
       document.getElementById('commConfig').innerHTML=revs.length?revs.map(r=>{
         const pct=comissoes[r.name]||10;
@@ -1316,12 +1392,14 @@ function renderAdmin(){
           </div>
         </div>`;
       }).join(''):'<p style="padding:10px 0;font-size:13px;color:var(--muted)">Nenhum revendedor ainda</p>';
-      // Ranking revendedores
+
+      // Ranking revendedores (total acumulado)
       document.getElementById('adminRevList').innerHTML=revs.sort((a,b)=>b.total-a.total).map(r=>`
         <div class="rev-row">
           <div><div style="font-size:13px;font-weight:600">${r.name}</div><div style="font-size:11px;color:var(--muted)">${r.pedidos} pedido(s) · Mês: ${fmt(r.mes)}</div></div>
           <span style="font-size:15px;font-weight:700;color:var(--green)">${fmt(r.total)}</span>
         </div>`).join('')||'<p style="font-size:13px;color:var(--muted);padding:10px 0">Nenhum revendedor ainda</p>';
+
       // Pedidos
       document.getElementById('adminOrderList').innerHTML=oArr.sort((a,b)=>b.ts-a.ts).map(o=>`<div class="oc" onclick="openOrder('${o.id}')">
         <div class="oh"><span class="on">${o.clientNome||'Avulso'}</span><span class="od">${o.date}</span></div>
