@@ -476,7 +476,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green)}
       <div class="mc"><div class="lb">Clientes</div><div class="vl" id="adCli">0</div></div>
       <div class="mc"><div class="lb">Revendedores</div><div class="vl a" id="adRev">0</div></div>
     </div>
-    <div class="st">💰 Comissões do mês</div>
+    <div class="st" style="display:flex;align-items:center;justify-content:space-between">
+      <span>💰 Comissões</span>
+      <select id="adminMesSelect" onchange="adminMesSel=this.value;renderAdmin()" style="font-size:11px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);color:var(--text);background:#fff;margin-left:8px"></select>
+    </div>
     <div class="card" style="padding:4px 14px" id="commList"></div>
     <div class="st">⚙️ % de comissão por revendedor</div>
     <div class="card" style="padding:4px 14px" id="commConfig"></div>
@@ -606,6 +609,7 @@ let catTable='distribuidor',ordTable='distribuidor';
 let orderQtys={},selPgto='Dinheiro',selCli=null,curCli=null,editandoRascunhoId=null;
 let navStack=[],curOrderId=null;
 let editOrdTable='distribuidor',editSelPgto='Dinheiro',editOrderQtys={};
+let adminMesSel='';
 let gpsLat=-20.274,gpsLng=-50.536,gpsCity='';
 let photoDataURL=null;
 const ROOT=['home','clients','catalog','orders','admin'];
@@ -731,7 +735,7 @@ function renderHome(){
   const mk=monthKey();
   const allOrders=CR==='admin'?Object.values(orders):Object.values(orders).filter(o=>o.revendedor===CU);
   const monthOrders=allOrders.filter(o=>{const parts=o.date.split('/');return parts[1]+'-'+parts[2]===mk||(o.ts&&new Date(o.ts).getMonth()===new Date().getMonth()&&new Date(o.ts).getFullYear()===new Date().getFullYear());});
-  const monthTotal=monthOrders.reduce((s,o)=>s+o.total,0);
+  const monthTotal=monthOrders.filter(o=>o.pgto!=='Amostras'&&o.pgto!=='Bonificação').reduce((s,o)=>s+o.total,0);
   const pct=comissoes[CU]||10;
   const comm=monthTotal*pct/100;
   const box=document.getElementById('commHomeBox');
@@ -1265,14 +1269,26 @@ function renderAdmin(){
     db.ref('clients').once('value',cs=>{
       const oArr=Object.values(os.val()||{});
       const cArr=Object.values(cs.val()||{});
-      const mk=monthKey();
+      // Popular seletor de meses disponíveis
+      const mesesDisp=new Set();
+      oArr.forEach(o=>{if(o.ts){const d=new Date(o.ts);mesesDisp.add(d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0'));}});
+      const mesesOrdenados=[...mesesDisp].sort().reverse();
+      const mk=adminMesSel||monthKey();
+      const sel=document.getElementById('adminMesSelect');
+      if(sel){
+        const opts=mesesOrdenados.map(m=>{
+          const [y,mo]=m.split('-');
+          const label=new Date(y,mo-1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+          return`<option value="${m}" ${m===mk?'selected':''}>${label}</option>`;
+        });
+        sel.innerHTML=opts.join('');
+      }
       const revMap={};
       oArr.forEach(o=>{
         const r=o.revendedor||'Desconhecido';
         if(!revMap[r])revMap[r]={name:r,pedidos:0,total:0,mes:0};
         revMap[r].pedidos++;revMap[r].total+=o.total;
-        if(o.ts&&new Date(o.ts).getMonth()===new Date().getMonth()&&new Date(o.ts).getFullYear()===new Date().getFullYear())
-          revMap[r].mes+=o.total;
+        if(o.ts){const d=new Date(o.ts);const oMk=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0');if(oMk===mk&&o.pgto!=='Amostras'&&o.pgto!=='Bonificação')revMap[r].mes+=o.total;}
       });
       const revs=Object.values(revMap);
       document.getElementById('adPed').textContent=oArr.length;
@@ -1473,13 +1489,6 @@ function abrirEdicaoPedido(){
   if(!curOrderId)return;
   db.ref('orders/'+curOrderId).once('value',function(snap){
     const o=snap.val();if(!o)return;
-    // Preencher info do cliente
-    db.ref('clients/'+o.clientId).once('value',function(csnap){
-      const c=csnap.val();
-      document.getElementById('editOrderClientInfo').innerHTML=
-        '<div style="font-size:13px;font-weight:700">'+(c?c.nome:'Avulso')+'</div>'+
-        '<div style="font-size:11px;color:var(--muted)">Pedido: '+o.id+' · '+o.date+'</div>';
-    });
     // Restaurar estado do pedido
     editOrdTable=o.table||'distribuidor';
     editSelPgto=o.pgto||'Dinheiro';
@@ -1487,18 +1496,25 @@ function abrirEdicaoPedido(){
     (o.items||[]).forEach(function(it){editOrderQtys[it.id]=it.qty;});
     document.getElementById('editDiscountInput').value=o.discount||0;
     document.getElementById('editOrderObs').value=o.obs||'';
-    // Tabs de tabela
-    document.querySelectorAll('#editOrderTabs .pt-tab').forEach(function(b){
-      const t=b.textContent.trim().toLowerCase();
-      b.classList.toggle('active',editOrdTable==='distribuidor'?t.startsWith('dist'):editOrdTable==='atacado'?t.startsWith('var'):t.startsWith('con'));
+    // Preencher info do cliente e navegar
+    db.ref('clients/'+o.clientId).once('value',function(csnap){
+      const c=csnap.val();
+      document.getElementById('editOrderClientInfo').innerHTML=
+        '<div style="font-size:13px;font-weight:700">'+(c?c.nome:'Avulso')+'</div>'+
+        '<div style="font-size:11px;color:var(--muted)">Pedido: '+o.id+' · '+o.date+'</div>';
+      // Tabs de tabela
+      document.querySelectorAll('#editOrderTabs .pt-tab').forEach(function(b){
+        const t=b.textContent.trim().toLowerCase();
+        b.classList.toggle('active',editOrdTable==='distribuidor'?t.startsWith('dist'):editOrdTable==='atacado'?t.startsWith('var'):t.startsWith('con'));
+      });
+      // Botões de pagamento
+      document.querySelectorAll('#editPgtoGrid .pb').forEach(function(b){
+        b.classList.toggle('active',(b.getAttribute('onclick')||'').includes("'"+editSelPgto+"'"));
+      });
+      renderEditOrderProds();
+      updateEditTotal();
+      nav('editOrder');
     });
-    // Botões de pagamento
-    document.querySelectorAll('#editPgtoGrid .pb').forEach(function(b){
-      b.classList.toggle('active',(b.getAttribute('onclick')||'').includes("'"+editSelPgto+"'"));
-    });
-    renderEditOrderProds();
-    updateEditTotal();
-    nav('editOrder');
   });
 }
 
