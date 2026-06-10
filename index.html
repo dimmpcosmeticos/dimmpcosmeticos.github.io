@@ -254,6 +254,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green)}
           <option value="distribuidor">Distribuidor</option>
           <option value="atacado">Varejo / Barbearia</option>
           <option value="varejo">Consumidor Final</option>
+          <option value="lucroreal">Lucro Real</option>
         </select></div>
         <div><label>Cidade *</label><input type="text" id="nc-cidade" placeholder="Jales"></div>
       </div>
@@ -303,6 +304,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green)}
           <option value="distribuidor">Distribuidor</option>
           <option value="atacado">Varejo / Barbearia</option>
           <option value="varejo">Consumidor Final</option>
+          <option value="lucroreal">Lucro Real</option>
         </select></div>
         <div><label>Cidade</label><input type="text" id="ec-cidade"></div>
       </div>
@@ -354,6 +356,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green)}
       <button class="pt-tab active" onclick="setCatTable('distribuidor',this)">Distribuidor</button>
       <button class="pt-tab" onclick="setCatTable('atacado',this)">Varejo / Barbearia</button>
       <button class="pt-tab" onclick="setCatTable('varejo',this)">Consumidor Final</button>
+      <button class="pt-tab" onclick="setCatTable('lucroreal',this)">Lucro Real</button>
     </div>
     <div class="sb"><span class="si">🔍</span><input type="text" placeholder="Buscar produto..." oninput="filterProds(this.value,'productList')"></div>
     <div id="productList"></div>
@@ -369,6 +372,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green)}
       <button class="pt-tab active" onclick="setOrdTable('distribuidor',this)">Distribuidor</button>
       <button class="pt-tab" onclick="setOrdTable('atacado',this)">Varejo / Barbearia</button>
       <button class="pt-tab" onclick="setOrdTable('varejo',this)">Consumidor Final</button>
+      <button class="pt-tab" onclick="setOrdTable('lucroreal',this)">Lucro Real</button>
     </div>
     <div class="st">Produtos</div>
     <div class="sb"><span class="si">🔍</span><input type="text" placeholder="Buscar produto..." oninput="filterProds(this.value,'orderProductList')"></div>
@@ -455,6 +459,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green)}
       <button class="pt-tab active" onclick="setEditOrdTable('distribuidor',this)">Distribuidor</button>
       <button class="pt-tab" onclick="setEditOrdTable('atacado',this)">Varejo / Barbearia</button>
       <button class="pt-tab" onclick="setEditOrdTable('varejo',this)">Consumidor Final</button>
+      <button class="pt-tab" onclick="setEditOrdTable('lucroreal',this)">Lucro Real</button>
     </div>
     <div class="st">Produtos</div>
     <div class="sb"><span class="si">🔍</span><input type="text" placeholder="Buscar produto..." oninput="filterProds(this.value,'editOrderProductList')"></div>
@@ -544,7 +549,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green)}
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
 <script>
 const ADMIN_PWD='Dimmp@2026';
-const TBL={distribuidor:'Distribuidor',atacado:'Varejo / Barbearia',varejo:'Consumidor Final'};
+const TBL={distribuidor:'Distribuidor',atacado:'Varejo / Barbearia',varejo:'Consumidor Final',lucroreal:'Lucro Real'};
 
 firebase.initializeApp({
   apiKey:"AIzaSyDwS322NRpP_gthB9E-w0D64kZSmCDfOAI",
@@ -652,7 +657,17 @@ let photoDataURL=null;
 const ROOT=['home','clients','catalog','orders','admin'];
 
 function fmt(v){return'R$ '+Number(v).toFixed(2).replace('.',',');}
-function getP(p,t){return t==='distribuidor'?p.dist:t==='atacado'?p.atac:p.var;}
+function getP(p,t){
+  if(t==='distribuidor')return p.dist;
+  if(t==='atacado')return p.atac;
+  if(t==='lucroreal'){
+    const raw=p.atac*1.12;
+    const fl=Math.floor(raw);
+    const opts=[fl+0.90,fl+0.50,fl-0.10,fl-0.50].filter(v=>v<=raw+0.005);
+    return opts.length?Math.max(...opts):Math.round(raw*100)/100;
+  }
+  return p.var;
+}
 function ac(s){const cs=['g','a','c'];let h=0;for(let i=0;i<s.length;i++)h+=s.charCodeAt(i);return cs[h%3];}
 function ini(n){return n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();}
 function today(){return new Date().toLocaleDateString('pt-BR');}
@@ -995,7 +1010,7 @@ function renderCatalog(){
 function setOrdTable(t,btn){ordTable=t;document.querySelectorAll('#orderTabs .pt-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderOrderProds();updateTotal();}
 function setOrderClient(val){
   selCli=val===''?null:val;
-  if(selCli&&clients[selCli]){ordTable=clients[selCli].tipo;document.querySelectorAll('#orderTabs .pt-tab').forEach(b=>b.classList.toggle('active',b.textContent.trim().toLowerCase().startsWith(ordTable==='distribuidor'?'dist':ordTable==='atacado'?'var':'con')));renderOrderProds();updateTotal();}
+  if(selCli&&clients[selCli]){ordTable=clients[selCli].tipo;document.querySelectorAll('#orderTabs .pt-tab').forEach(b=>b.classList.toggle('active',b.textContent.trim().toLowerCase().startsWith(ordTable==='distribuidor'?'dist':ordTable==='atacado'?'var':ordTable==='lucroreal'?'lucro':'con')));renderOrderProds();updateTotal();}
 }
 function updateCliSel(){
   const sel=document.getElementById('orderClient');if(!sel)return;
@@ -1011,7 +1026,7 @@ function initOrder(){
   document.querySelectorAll('#pgtoGrid .pb').forEach((b,i)=>b.classList.toggle('active',i===0));
   updateCliSel();
   if(selCli&&clients[selCli])ordTable=clients[selCli].tipo;
-  document.querySelectorAll('#orderTabs .pt-tab').forEach(b=>{const t=b.textContent.trim().toLowerCase();b.classList.toggle('active',ordTable==='distribuidor'?t.startsWith('dist'):ordTable==='atacado'?t.startsWith('var'):t.startsWith('con'));});
+  document.querySelectorAll('#orderTabs .pt-tab').forEach(b=>{const t=b.textContent.trim().toLowerCase();b.classList.toggle('active',ordTable==='distribuidor'?t.startsWith('dist'):ordTable==='atacado'?t.startsWith('var'):ordTable==='lucroreal'?t.startsWith('lucro'):t.startsWith('con'));});
   renderOrderProds();updateTotal();
 }
 function renderOrderProds(){
@@ -1219,7 +1234,7 @@ function editarRascunho(){
     if(sel)sel.value=selCli||'';
     document.querySelectorAll('#orderTabs .pt-tab').forEach(function(b){
       const t=b.textContent.trim().toLowerCase();
-      b.classList.toggle('active',ordTable==='distribuidor'?t.startsWith('dist'):ordTable==='atacado'?t.startsWith('var'):t.startsWith('con'));
+      b.classList.toggle('active',ordTable==='distribuidor'?t.startsWith('dist'):ordTable==='atacado'?t.startsWith('var'):ordTable==='lucroreal'?t.startsWith('lucro'):t.startsWith('con'));
     });
     renderOrderProds();
     updateTotal();
@@ -1583,7 +1598,7 @@ function abrirEdicaoPedido(){
       // Tabs de tabela
       document.querySelectorAll('#editOrderTabs .pt-tab').forEach(function(b){
         const t=b.textContent.trim().toLowerCase();
-        b.classList.toggle('active',editOrdTable==='distribuidor'?t.startsWith('dist'):editOrdTable==='atacado'?t.startsWith('var'):t.startsWith('con'));
+        b.classList.toggle('active',editOrdTable==='distribuidor'?t.startsWith('dist'):editOrdTable==='atacado'?t.startsWith('var'):editOrdTable==='lucroreal'?t.startsWith('lucro'):t.startsWith('con'));
       });
       // Botões de pagamento
       document.querySelectorAll('#editPgtoGrid .pb').forEach(function(b){
