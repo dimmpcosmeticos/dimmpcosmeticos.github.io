@@ -1099,7 +1099,7 @@ function finalizeOrder(){
     const p=ALL_PRODS.find(x=>x.id===pid);
     if(!p)return;
     items.push({id:p.id,baseId:p.baseId||p.id,
-      name:p.name+(Object.keys(orderQtys).filter(k=>k.startsWith(pid+'_')&&orderQtys[k]>0).length>1?' ('+tbl.charAt(0).toUpperCase()+tbl.slice(1)+')':''),
+      name:p.name+(Object.keys(orderQtys).filter(k=>k.startsWith(pid+'_')&&orderQtys[k]>0).length>1?' ('+(tbl==='distribuidor'?'Distribuidor':tbl==='atacado'?'Varejo/Barbearia':tbl==='varejo'?'Consumidor Final':'Lucro Real')+')':''),
       e:p.e,qty:orderQtys[key],
       unidades:(orderQtys[key]||0)*(p.isCaixa?p.cxQtd:1),
       isCaixa:p.isCaixa||false,cxQtd:p.cxQtd||1,
