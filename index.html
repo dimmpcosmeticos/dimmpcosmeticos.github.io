@@ -1010,7 +1010,11 @@ function renderCatalog(){
 function setOrdTable(t,btn){ordTable=t;document.querySelectorAll('#orderTabs .pt-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderOrderProds();updateTotal();}
 function setOrderClient(val){
   selCli=val===''?null:val;
-  if(selCli&&clients[selCli]){ordTable=clients[selCli].tipo;document.querySelectorAll('#orderTabs .pt-tab').forEach(b=>b.classList.toggle('active',b.textContent.trim().toLowerCase().startsWith(ordTable==='distribuidor'?'dist':ordTable==='atacado'?'var':ordTable==='lucroreal'?'lucro':'con')));renderOrderProds();updateTotal();}
+  if(selCli&&clients[selCli]&&Object.keys(orderQtys).length===0){
+    ordTable=clients[selCli].tipo;
+    document.querySelectorAll('#orderTabs .pt-tab').forEach(b=>b.classList.toggle('active',b.textContent.trim().toLowerCase().startsWith(ordTable==='distribuidor'?'dist':ordTable==='atacado'?'var':ordTable==='lucroreal'?'lucro':'con')));
+    renderOrderProds();updateTotal();
+  }
 }
 function updateCliSel(){
   const sel=document.getElementById('orderClient');if(!sel)return;
@@ -1036,7 +1040,8 @@ function renderOrderProds(){
     const items=ALL_PRODS.filter(p=>p.cat===cat);
     return`<div class="st">${cat}</div><div class="card" style="padding:4px 14px">${
       items.map(p=>{
-        const q=orderQtys[p.id]||0;
+        const key=p.id+'_'+ordTable;
+        const q=orderQtys[key]||0;
         const estoqueId=p.isCaixa?p.baseId:p.id;
         const stk=getEstoque(estoqueId);
         const maxQ=p.isCaixa?(stk===999?9999:Math.floor(stk/p.cxQtd)):(stk===999?9999:stk);
@@ -1056,31 +1061,50 @@ function renderOrderProds(){
   }).join('');
 }
 function chgQty(id,d){
+  const key=id+'_'+ordTable;
   const p=ALL_PRODS.find(x=>x.id===id);
   const estoqueId=p&&p.isCaixa?p.baseId:id;
   const stk=getEstoque(estoqueId);
   const maxQ=p&&p.isCaixa?(stk===999?9999:Math.floor(stk/p.cxQtd)):(stk===999?9999:stk);
-  orderQtys[id]=Math.max(0,Math.min(maxQ,(orderQtys[id]||0)+d));
-  const q=orderQtys[id];
+  orderQtys[key]=Math.max(0,Math.min(maxQ,(orderQtys[key]||0)+d));
+  const q=orderQtys[key];
   const el=document.getElementById('q'+id);if(el)el.textContent=q;
   const mb=document.getElementById('mb'+id);if(mb)mb.disabled=(q===0);
-  const pb=document.getElementById('pb'+id);if(pb)pb.disabled=(stk!==999&&q>=stk);
+  const pb=document.getElementById('pb'+id);if(pb)pb.disabled=(stk!==999&&q>=maxQ);
   updateTotal();
 }
+
 function setPgto(btn,name){selPgto=name;document.querySelectorAll('#pgtoGrid .pb').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.getElementById('pixInfo').style.display=name==='PIX'?'flex':'none';}
 function updateTotal(){
-  let sub=0;ALL_PRODS.forEach(p=>{sub+=(orderQtys[p.id]||0)*getP(p,ordTable);});
+  let sub=0;
+  Object.keys(orderQtys).forEach(function(key){
+    const parts=key.split('_');
+    const pid=parts.slice(0,-1).join('_');
+    const tbl=parts[parts.length-1];
+    const p=ALL_PRODS.find(x=>x.id===pid);
+    if(p)sub+=(orderQtys[key]||0)*getP(p,tbl);
+  });
   const d=Math.min(40,Math.max(0,parseFloat(document.getElementById('discountInput').value)||0));
   document.getElementById('summSub').textContent=fmt(sub);
   document.getElementById('summDisc').textContent='- '+fmt(sub*d/100);
   document.getElementById('summTot').textContent=fmt(sub*(1-d/100));
 }
 function finalizeOrder(){
-  const items=ALL_PRODS.filter(p=>(orderQtys[p.id]||0)>0).map(p=>{
-    return{id:p.id,baseId:p.baseId||p.id,name:p.name,e:p.e,qty:orderQtys[p.id],
-      unidades:(orderQtys[p.id]||0)*(p.isCaixa?p.cxQtd:1),
-      isCaixa:p.isCaixa||false,cxQtd:p.cxQtd||1,price:getP(p,ordTable)};
-  }).filter(Boolean);
+  const items=[];
+  Object.keys(orderQtys).forEach(function(key){
+    if((orderQtys[key]||0)===0)return;
+    const parts=key.split('_');
+    const pid=parts.slice(0,-1).join('_');
+    const tbl=parts[parts.length-1];
+    const p=ALL_PRODS.find(x=>x.id===pid);
+    if(!p)return;
+    items.push({id:p.id,baseId:p.baseId||p.id,
+      name:p.name+(Object.keys(orderQtys).filter(k=>k.startsWith(pid+'_')&&orderQtys[k]>0).length>1?' ('+tbl.charAt(0).toUpperCase()+tbl.slice(1)+')':''),
+      e:p.e,qty:orderQtys[key],
+      unidades:(orderQtys[key]||0)*(p.isCaixa?p.cxQtd:1),
+      isCaixa:p.isCaixa||false,cxQtd:p.cxQtd||1,
+      price:getP(p,tbl),table:tbl});
+  });
   if(!items.length){alert('Adicione pelo menos 1 produto.');return;}
   if(!selCli){alert('Selecione um cliente.');return;}
   const d=Math.min(40,parseFloat(document.getElementById('discountInput').value)||0);
@@ -1255,7 +1279,7 @@ function sendWhatsAppRasc(){
     const o=os.val();if(!o)return;
     db.ref('clients/'+o.clientId).once('value',function(cs){
       const c=cs.val();let sub=0;(o.items||[]).forEach(function(it){sub+=it.qty*it.price;});
-      let msg='*🟡 RASCUNHO DIMMP COSMÉTICOS*\nCliente: '+(c?c.nome:'Avulso')+'\nData: '+o.date+' | '+TBL[o.table]+'\n\n*Produtos:*\n';
+      let msg='*🟡 RASCUNHO DIMMP COSMÉTICOS*\nCliente: '+(c?c.nome:'Avulso')+'\nData: '+o.date+'\n\n*Produtos:*\n';
       (o.items||[]).forEach(function(it){msg+='• '+it.name+' x'+it.qty+' = '+fmt(it.qty*it.price)+'\n';});
       msg+='\nSubtotal: '+fmt(sub);
       if(o.discount>0)msg+='\nDesconto: -'+fmt(sub*o.discount/100)+' ('+o.discount+'%)';
