@@ -237,16 +237,18 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green)}
   <div class="screen" id="screen-newClient">
     <div class="st">Dados do cliente</div>
     <div class="card">
-      <label>Pessoa *</label>
-      <div style="display:flex;gap:12px;margin-bottom:8px">
-        <label style="display:flex;align-items:center;gap:4px;font-weight:400"><input type="radio" name="nc-pessoa" id="nc-pj" value="Jurídica" checked> Jurídica (CNPJ)</label>
-        <label style="display:flex;align-items:center;gap:4px;font-weight:400"><input type="radio" name="nc-pessoa" id="nc-pf" value="Física"> Física (CPF)</label>
+      <label>Tipo de Pessoa *</label>
+      <div class="pt-tabs" id="nc-pessoa-tabs">
+        <button type="button" class="pt-tab active" id="nc-pj-btn" onclick="setPessoa('nc','Jurídica')">🏢 Pessoa Jurídica</button>
+        <button type="button" class="pt-tab" id="nc-pf-btn" onclick="setPessoa('nc','Física')">👤 Pessoa Física</button>
       </div>
+      <input type="hidden" id="nc-pessoa" value="Jurídica">
       <label>Nome Fantasia *</label><input type="text" id="nc-nome" placeholder="Ex: Barbearia Premium">
       <label>Razão Social</label><input type="text" id="nc-razao" placeholder="Ex: João Silva LTDA">
-      <label>CNPJ ou CPF *</label><input type="text" id="nc-doc" placeholder="00.000.000/0001-00">
+      <label id="nc-doc-label">CNPJ *</label><input type="text" id="nc-doc" placeholder="00.000.000/0001-00" inputmode="numeric" oninput="maskDoc(this,'nc')">
+      <div id="nc-ie-row"><label>Inscrição Estadual</label><input type="text" id="nc-ie" placeholder="000.000.000.000 ou Isento"></div>
       <label>Responsável</label><input type="text" id="nc-resp" placeholder="Nome do proprietário">
-      <label>WhatsApp *</label><input type="tel" id="nc-tel" placeholder="(17) 9 9999-9999">
+      <label>WhatsApp *</label><input type="tel" id="nc-tel" placeholder="(17) 99601-1152" inputmode="numeric" oninput="maskPhone(this)">
       <label>E-mail</label><input type="email" id="nc-email" placeholder="contato@empresa.com">
       <div class="r2">
         <div><label>Tabela *</label>
@@ -257,6 +259,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green)}
         </select></div>
         <div><label>Cidade *</label><input type="text" id="nc-cidade" placeholder="Jales"></div>
       </div>
+      <label>CEP</label><input type="text" id="nc-cep" placeholder="15150-000" inputmode="numeric" oninput="maskCEP(this)" onblur="buscarCEP('nc')">
       <div class="r2">
         <div><label>Estado</label><input type="text" id="nc-estado" placeholder="SP" maxlength="2"></div>
         <div><label>Bairro</label><input type="text" id="nc-bairro" placeholder="Centro"></div>
@@ -286,16 +289,18 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green)}
   <div class="screen" id="screen-editClient">
     <div class="st">Editar cliente</div>
     <div class="card">
-      <label>Pessoa</label>
-      <div style="display:flex;gap:12px;margin-bottom:8px">
-        <label style="display:flex;align-items:center;gap:4px;font-weight:400"><input type="radio" name="ec-pessoa" id="ec-pj" value="Jurídica" checked> Jurídica</label>
-        <label style="display:flex;align-items:center;gap:4px;font-weight:400"><input type="radio" name="ec-pessoa" id="ec-pf" value="Física"> Física</label>
+      <label>Tipo de Pessoa</label>
+      <div class="pt-tabs" id="ec-pessoa-tabs">
+        <button type="button" class="pt-tab active" id="ec-pj-btn" onclick="setPessoa('ec','Jurídica')">🏢 Pessoa Jurídica</button>
+        <button type="button" class="pt-tab" id="ec-pf-btn" onclick="setPessoa('ec','Física')">👤 Pessoa Física</button>
       </div>
+      <input type="hidden" id="ec-pessoa" value="Jurídica">
       <label>Nome Fantasia *</label><input type="text" id="ec-nome">
       <label>Razão Social</label><input type="text" id="ec-razao">
-      <label>CNPJ ou CPF *</label><input type="text" id="ec-doc">
+      <label id="ec-doc-label">CNPJ *</label><input type="text" id="ec-doc" inputmode="numeric" oninput="maskDoc(this,'ec')">
+      <div id="ec-ie-row"><label>Inscrição Estadual</label><input type="text" id="ec-ie" placeholder="000.000.000.000 ou Isento"></div>
       <label>Responsável</label><input type="text" id="ec-resp">
-      <label>WhatsApp</label><input type="tel" id="ec-tel">
+      <label>WhatsApp</label><input type="tel" id="ec-tel" placeholder="(17) 99601-1152" inputmode="numeric" oninput="maskPhone(this)">
       <label>E-mail</label><input type="email" id="ec-email">
       <div class="r2">
         <div><label>Tabela</label>
@@ -306,6 +311,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green)}
         </select></div>
         <div><label>Cidade</label><input type="text" id="ec-cidade"></div>
       </div>
+      <label>CEP</label><input type="text" id="ec-cep" placeholder="15150-000" inputmode="numeric" oninput="maskCEP(this)" onblur="buscarCEP('ec')">
       <div class="r2">
         <div><label>Estado</label><input type="text" id="ec-estado" maxlength="2"></div>
         <div><label>Bairro</label><input type="text" id="ec-bairro"></div>
@@ -797,6 +803,74 @@ function renderHome(){
 
 // CLIENTS
 function filterClients(q){document.querySelectorAll('#clientList .cr').forEach(r=>{r.style.display=r.dataset.n.toLowerCase().includes(q.toLowerCase())?'':'none';});}
+
+// PESSOA JURÍDICA / FÍSICA
+function setPessoa(prefix,val){
+  document.getElementById(prefix+'-pessoa').value=val;
+  document.getElementById(prefix+'-pj-btn').classList.toggle('active',val==='Jurídica');
+  document.getElementById(prefix+'-pf-btn').classList.toggle('active',val==='Física');
+  document.getElementById(prefix+'-ie-row').style.display=val==='Jurídica'?'block':'none';
+  const label=document.getElementById(prefix+'-doc-label');
+  const inp=document.getElementById(prefix+'-doc');
+  if(val==='Física'){
+    label.textContent='CPF *';
+    inp.placeholder='000.000.000-00';
+  }else{
+    label.textContent='CNPJ *';
+    inp.placeholder='00.000.000/0001-00';
+  }
+  maskDoc(inp,prefix);
+}
+function maskDoc(el,prefix){
+  const pessoa=document.getElementById(prefix+'-pessoa').value;
+  let v=el.value.replace(/\D/g,'');
+  if(pessoa==='Física'){
+    v=v.slice(0,11);
+    v=v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2');
+  }else{
+    v=v.slice(0,14);
+    v=v.replace(/^(\d{2})(\d)/,'$1.$2').replace(/^(\d{2}\.\d{3})(\d)/,'$1.$2').replace(/^(\d{2}\.\d{3}\.\d{3})(\d)/,'$1/$2').replace(/(\d{4})(\d{1,2})$/,'$1-$2');
+  }
+  el.value=v;
+}
+function maskCEP(el){
+  let v=el.value.replace(/\D/g,'').slice(0,8);
+  if(v.length>5)v=v.replace(/(\d{5})(\d{1,3})/,'$1-$2');
+  el.value=v;
+}
+function maskPhone(el){
+  let v=el.value.replace(/\D/g,'').slice(0,11);
+  if(v.length<=2){
+    v=v.replace(/^(\d*)/,'($1');
+  }else if(v.length<=6){
+    v=v.replace(/^(\d{2})(\d*)/,'($1) $2');
+  }else if(v.length<=10){
+    v=v.replace(/^(\d{2})(\d{4})(\d*)/,'($1) $2-$3');
+  }else{
+    v=v.replace(/^(\d{2})(\d{5})(\d*)/,'($1) $2-$3');
+  }
+  el.value=v;
+}
+function fmtTel(tel){
+  if(!tel)return'';
+  const v=String(tel).replace(/\D/g,'');
+  if(v.length===11)return v.replace(/^(\d{2})(\d{5})(\d{4})$/,'($1) $2-$3');
+  if(v.length===10)return v.replace(/^(\d{2})(\d{4})(\d{4})$/,'($1) $2-$3');
+  return tel;
+}
+function buscarCEP(prefix){
+  const cepEl=document.getElementById(prefix+'-cep');
+  const cep=cepEl.value.replace(/\D/g,'');
+  if(cep.length!==8)return;
+  fetch('https://viacep.com.br/ws/'+cep+'/json/').then(r=>r.json()).then(d=>{
+    if(d.erro)return;
+    if(d.logradouro)document.getElementById(prefix+'-end').value=d.logradouro;
+    if(d.bairro)document.getElementById(prefix+'-bairro').value=d.bairro;
+    if(d.localidade)document.getElementById(prefix+'-cidade').value=d.localidade;
+    if(d.uf)document.getElementById(prefix+'-estado').value=d.uf;
+    document.getElementById(prefix+'-num').focus();
+  }).catch(()=>{});
+}
 function renderClients(){
   const el=document.getElementById('clientList');
   const arr=Object.values(clients);
@@ -817,10 +891,12 @@ function openClient(id){
       </div>
       <div style="border-top:1px solid var(--border);padding-top:8px">
         <div class="drow"><span class="dl">CNPJ/CPF</span><span>${c.doc}</span></div>
-        <div class="drow"><span class="dl">WhatsApp</span><span>${c.tel}</span></div>
+        ${c.ie?`<div class="drow"><span class="dl">Insc. Estadual</span><span>${c.ie}</span></div>`:''}
+        <div class="drow"><span class="dl">WhatsApp</span><span>${fmtTel(c.tel)}</span></div>
         ${c.email?`<div class="drow"><span class="dl">E-mail</span><span>${c.email}</span></div>`:''}
         <div class="drow"><span class="dl">Cidade</span><span>${c.cidade||''}</span></div>
         ${c.end?`<div class="drow"><span class="dl">Endereço</span><span style="font-size:12px">${c.end}</span></div>`:''}
+        ${c.cep?`<div class="drow"><span class="dl">CEP</span><span style="font-size:12px">${c.cep}</span></div>`:''}
         <div class="drow"><span class="dl">GPS</span><span style="font-size:11px;color:var(--muted)">${c.lat?c.lat.toFixed(4)+', '+c.lng.toFixed(4)+(c.cidade_gps?' · '+c.cidade_gps:''):'—'}</span></div>
         ${c.obs?`<div class="drow"><span class="dl">Obs</span><span style="font-size:12px">${c.obs}</span></div>`:''}
         <div class="drow"><span class="dl">Cadastrado por</span><span>${c.revendedor||'—'}${c.criadoEm?' · '+c.criadoEm:''}</span></div>
@@ -855,12 +931,14 @@ function editClient(){
   document.getElementById('ec-cidade').value=c.cidade||'';
   document.getElementById('ec-estado').value=c.estado||'';
   document.getElementById('ec-bairro').value=c.bairro||'';
+  document.getElementById('ec-cep').value=c.cep||'';
   document.getElementById('ec-end').value=c.end||'';
   document.getElementById('ec-num').value=c.num||'';
   document.getElementById('ec-obs').value=c.obs||'';
   document.getElementById('ec-tipo-edit').value=c.tipo||'distribuidor';
-  if(c.pessoa==='Física'){document.getElementById('ec-pf').checked=true;}
-  else{document.getElementById('ec-pj').checked=true;}
+  setPessoa('ec',c.pessoa==='Física'?'Física':'Jurídica');
+  document.getElementById('ec-doc').value=c.doc||'';
+  document.getElementById('ec-ie').value=c.ie||'';
   nav('editClient');
 }
 function saveEditClient(){
@@ -868,8 +946,9 @@ function saveEditClient(){
   const nome=document.getElementById('ec-nome').value.trim();
   const doc=document.getElementById('ec-doc').value.trim();
   if(!nome||!doc){alert('Preencha nome e CNPJ/CPF.');return;}
-  const pessoa=document.querySelector('input[name="ec-pessoa"]:checked')?.value||'Jurídica';
+  const pessoa=document.getElementById('ec-pessoa').value||'Jurídica';
   const updates={nome,doc,pessoa,
+    ie:pessoa==='Jurídica'?document.getElementById('ec-ie').value:'',
     razao:document.getElementById('ec-razao').value,
     resp:document.getElementById('ec-resp').value,
     tel:document.getElementById('ec-tel').value,
@@ -878,6 +957,7 @@ function saveEditClient(){
     cidade:document.getElementById('ec-cidade').value,
     estado:document.getElementById('ec-estado').value,
     bairro:document.getElementById('ec-bairro').value,
+    cep:document.getElementById('ec-cep').value,
     end:document.getElementById('ec-end').value,
     num:document.getElementById('ec-num').value,
     obs:document.getElementById('ec-obs').value
@@ -897,13 +977,15 @@ function exportClientCSV(){
     ['Nome Fantasia',c.nome||''],
     ['Nome/Razão Social',c.razao||c.nome||''],
     ['CPF/CNPJ',c.doc||''],
+    ['Inscrição Estadual',c.ie||''],
     ['Responsável',c.resp||''],
-    ['(ddd)Celular',c.tel||''],
+    ['(ddd)Celular',fmtTel(c.tel)],
     ['E-mail',c.email||''],
     ['Endereço',(c.end||'')+(c.num?' nº '+c.num:'')],
     ['Bairro',c.bairro||''],
     ['Município',c.cidade||''],
     ['Estado',c.estado||'SP'],
+    ['CEP',c.cep||''],
     ['Tabela',TBL[c.tipo]||c.tipo||''],
     ['GPS Lat',c.lat?c.lat.toFixed(6):''],
     ['GPS Lng',c.lng?c.lng.toFixed(6):''],
@@ -931,9 +1013,10 @@ function saveClient(){
   const nome=document.getElementById('nc-nome').value.trim();
   const doc=document.getElementById('nc-doc').value.trim();
   if(!nome||!doc){alert('Preencha nome e CNPJ/CPF.');return;}
-  const pessoa=document.querySelector('input[name="nc-pessoa"]:checked')?.value||'Jurídica';
+  const pessoa=document.getElementById('nc-pessoa').value||'Jurídica';
   const id='c_'+ts();
   const clientData={id,nome,doc,pessoa,
+    ie:pessoa==='Jurídica'?document.getElementById('nc-ie').value:'',
     razao:document.getElementById('nc-razao').value,
     resp:document.getElementById('nc-resp').value,
     tel:document.getElementById('nc-tel').value,
@@ -942,6 +1025,7 @@ function saveClient(){
     cidade:document.getElementById('nc-cidade').value,
     estado:document.getElementById('nc-estado').value,
     bairro:document.getElementById('nc-bairro').value,
+    cep:document.getElementById('nc-cep').value,
     end:document.getElementById('nc-end').value,
     num:document.getElementById('nc-num').value,
     obs:document.getElementById('nc-obs').value,
@@ -949,7 +1033,8 @@ function saveClient(){
   };
   const saveAndGo=()=>{
     db.ref('clients/'+id).set(clientData).then(()=>{
-      ['nc-nome','nc-razao','nc-doc','nc-resp','nc-tel','nc-email','nc-cidade','nc-estado','nc-bairro','nc-end','nc-num','nc-obs'].forEach(i=>document.getElementById(i).value='');
+      ['nc-nome','nc-razao','nc-doc','nc-ie','nc-resp','nc-tel','nc-email','nc-cidade','nc-estado','nc-bairro','nc-cep','nc-end','nc-num','nc-obs'].forEach(i=>document.getElementById(i).value='');
+      setPessoa('nc','Jurídica');
       photoDataURL=null;
       nav('clients');
     });
@@ -1149,7 +1234,7 @@ function openOrder(id){
 
 function buildReport(o,c,sub,dAmt){
   const L=['=== PEDIDO DIMMP COSMÉTICOS ===','Nº: '+o.id,'Data: '+o.date,'Revendedor: '+o.revendedor,'','--- CLIENTE ---'];
-  if(c){L.push('Nome: '+c.nome,'CNPJ/CPF: '+c.doc,'Tel: '+c.tel,'Cidade: '+(c.cidade||'')+(c.estado?' - '+c.estado:''),'GPS: '+(c.lat?c.lat.toFixed(4)+', '+c.lng.toFixed(4)+(c.cidade_gps?' · '+c.cidade_gps:''):'—'));}
+  if(c){L.push('Nome: '+c.nome,'CNPJ/CPF: '+c.doc,'Tel: '+fmtTel(c.tel),'Cidade: '+(c.cidade||'')+(c.estado?' - '+c.estado:''),'GPS: '+(c.lat?c.lat.toFixed(4)+', '+c.lng.toFixed(4)+(c.cidade_gps?' · '+c.cidade_gps:''):'—'));}
   L.push('Tabela: '+(TBL[o.table]||o.table).toUpperCase(),'','--- PRODUTOS ---');
   (o.items||[]).forEach(it=>L.push(it.name.substring(0,28).padEnd(28)+' x'+it.qty+'  '+fmt(it.qty*it.price)+'  ('+fmt(unitPrice(it))+'/un)'));
   L.push('','Subtotal: '+fmt(sub));
@@ -1166,12 +1251,14 @@ function buildReport(o,c,sub,dAmt){
     L.push('Nome Fantasia: '+(c.nome||''));
     L.push('Nome/Razão Social: '+(c.razao||c.nome||''));
     L.push('CPF/CNPJ: '+(c.doc||''));
-    L.push('(ddd)Celular: '+(c.tel||''));
+    L.push('Inscrição Estadual: '+(c.ie||''));
+    L.push('(ddd)Celular: '+fmtTel(c.tel));
     L.push('E-mail: '+(c.email||''));
     L.push('Endereço: '+(c.end||'')+' '+(c.num||''));
     L.push('Bairro: '+(c.bairro||''));
     L.push('Município: '+(c.cidade||''));
     L.push('Estado: '+(c.estado||'SP'));
+    L.push('CEP: '+(c.cep||''));
   }
   L.push('','-- PEDIDO --');
   L.push('Cliente: '+(c?c.nome:''));
@@ -1457,7 +1544,7 @@ function downloadCSV(){
     db.ref('clients/'+o.clientId).once('value',cs=>{
       const c=cs.val();let sub=0;(o.items||[]).forEach(it=>{sub+=it.qty*it.price;});
       const rows=[['Pedido','Data','Revendedor','Produto','Qtd','Preço','Total Item','Cliente','CNPJ','Tel','Cidade','Tabela','Subtotal','Desc%','Total','Pagamento','Obs']];
-      (o.items||[]).forEach(it=>{rows.push([o.id,o.date,o.revendedor,it.name,it.qty,it.price.toFixed(2),(it.qty*it.price).toFixed(2),c?c.nome:'',c?c.doc:'',c?c.tel:'',c?c.cidade:'',TBL[o.table]||o.table,sub.toFixed(2),o.discount,o.total.toFixed(2),o.pgto,o.obs]);});
+      (o.items||[]).forEach(it=>{rows.push([o.id,o.date,o.revendedor,it.name,it.qty,it.price.toFixed(2),(it.qty*it.price).toFixed(2),c?c.nome:'',c?c.doc:'',c?fmtTel(c.tel):'',c?c.cidade:'',TBL[o.table]||o.table,sub.toFixed(2),o.discount,o.total.toFixed(2),o.pgto,o.obs]);});
       const csv=rows.map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
       const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
       const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='pedido_'+o.id+'.csv';a.click();URL.revokeObjectURL(url);
@@ -1472,7 +1559,7 @@ function exportAllCSV(){
       const rows=[['Pedido','Data','Revendedor','Cliente','CNPJ','Tel','Cidade','Tabela','Produto','Qtd','Preço Unit.','Total Item','Subtotal','Desc%','Total','Pagamento','Obs']];
       oArr.forEach(o=>{
         const c=allC[o.clientId];let sub=0;(o.items||[]).forEach(it=>{sub+=it.qty*it.price;});
-        (o.items||[]).forEach(it=>{rows.push([o.id,o.date,o.revendedor,c?c.nome:'',c?c.doc:'',c?c.tel:'',c?c.cidade:'',TBL[o.table]||o.table,it.name,it.qty,it.price.toFixed(2),(it.qty*it.price).toFixed(2),sub.toFixed(2),o.discount,o.total.toFixed(2),o.pgto,o.obs]);});
+        (o.items||[]).forEach(it=>{rows.push([o.id,o.date,o.revendedor,c?c.nome:'',c?c.doc:'',c?fmtTel(c.tel):'',c?c.cidade:'',TBL[o.table]||o.table,it.name,it.qty,it.price.toFixed(2),(it.qty*it.price).toFixed(2),sub.toFixed(2),o.discount,o.total.toFixed(2),o.pgto,o.obs]);});
       });
       const csv=rows.map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
       const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
